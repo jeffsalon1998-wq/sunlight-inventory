@@ -232,27 +232,6 @@ const App: React.FC = () => {
 
 const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
 
-  // 1. Initial Load: Fetch from Neon with LocalStorage Fallback
-useEffect(() => {
-  const loadData = async () => {
-    try {
-      const res = await fetch('/api/inventory');
-      if (!res.ok) throw new Error('Database request failed'); // Always check response.ok
-      
-      const data = await res.json();
-      if (data) {
-        setInventory(data.inventory || []);
-        setTransactions(data.transactions || []);
-        setUsers(data.users || MOCK_USERS);
-      }
-    } catch (e) {
-      console.error("Database connection failed, falling back to local storage", e);
-      // Your existing fallback logic
-      setInventory(getStored('inventory', INITIAL_INVENTORY));
-    }
-  };
-  loadData();
-}, []); // Empty array runs this once on mount
 
 // Update the 'type' parameter to allow 'full_sync'
 const syncToCloud = async (newData: any, type: 'inventory' | 'transactions' | 'full_sync') => {
@@ -272,6 +251,23 @@ const syncToCloud = async (newData: any, type: 'inventory' | 'transactions' | 'f
     console.error("Sync failed", e);
     setSyncStatus('error');
   }
+  useEffect(() => {
+  // We check if inventory has items to avoid overwriting the cloud with an empty state
+  if (inventory.length > 0) {
+    const dataToSync = {
+      inventory,
+      transactions: transactions.slice(0, 50), // Send recent logs only
+      users,
+      categories: availableCategories,
+      departments: availableDepartments,
+      zones: availableZones
+    };
+    
+    // This now sends the 'full_sync' type that your POST handler expects
+    syncToCloud(dataToSync, 'full_sync');
+  }
+}, [inventory, transactions, users, availableCategories, availableDepartments, availableZones]); 
+// Adding all these to the dependency array ensures ANY change triggers a save
 };
 
 useEffect(() => {
