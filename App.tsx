@@ -9,7 +9,7 @@ import {
 } from './constants';
 import { 
   LayoutDashboard, Package, History, ShoppingCart, 
-  Search, X, CheckCircle2, PackagePlus, Sparkles,
+  Search, Cloud, X, CheckCircle2, PackagePlus, Sparkles,
   Building, Hash, Settings, TrendingDown, 
   PlusCircle, Inbox, Users, Check, RotateCcw,
   ArrowRight, Calendar, Tag, Layers, Trash2, Edit2, ShieldCheck, Briefcase, AlertTriangle, MapPin, DollarSign, ClipboardList, Printer, Eye, Info, Key, ChevronRight, Minus, Plus, ArrowRightLeft, Globe, Download, FileJson, FileSpreadsheet, Database, AlertCircle, Clock
@@ -230,21 +230,9 @@ const App: React.FC = () => {
   const [lastTxId, setLastTxId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
+const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'success' | 'error'>('idle');
 
-
-useEffect(() => {
-  // We check if inventory has items to avoid overwriting with an empty state
-  if (inventory.length > 0) {
-    const dataToSync = {
-      inventory,
-      transactions,
-      users
-    };
-    syncToCloud(dataToSync, 'inventory');
-  }
-}, [inventory, transactions]);
-
-// 1. Initial Load: Fetch from Neon with LocalStorage Fallback
+  // 1. Initial Load: Fetch from Neon with LocalStorage Fallback
 useEffect(() => {
   const loadData = async () => {
     try {
@@ -266,17 +254,23 @@ useEffect(() => {
   loadData();
 }, []); // Empty array runs this once on mount
 
-// 2. Cloud Sync Helper: Replaces local save-on-change logic
-const syncToCloud = async (newData: any, type: 'inventory' | 'transactions') => {
+// Update the 'type' parameter to allow 'full_sync'
+const syncToCloud = async (newData: any, type: 'inventory' | 'transactions' | 'full_sync') => {
+  setSyncStatus('syncing');
   try {
     const res = await fetch('/api/sync', {
-      method: 'POST', // Use POST to send new data to the server
+      method: 'POST',
       body: JSON.stringify({ type, data: newData }),
       headers: { 'Content-Type': 'application/json' }
     });
+    
     if (!res.ok) throw new Error('Sync failed');
+    
+    setSyncStatus('success');
+    setTimeout(() => setSyncStatus('idle'), 3000); // Return to idle after 3s
   } catch (e) {
     console.error("Sync failed", e);
+    setSyncStatus('error');
   }
 };
 
@@ -592,6 +586,35 @@ useEffect(() => {
       headers.join(','),
       ...rows.map(r => r.map(cell => `"${cell}"`).join(','))
     ].join('\n');
+
+    <header className="bg-[#800000] text-white px-6 shadow-lg flex justify-between items-center h-16 shrink-0 z-50">
+  <BrandLogo className="scale-75 -ml-4" />
+  <div className="flex items-center gap-4">
+    {/* --- ADD THIS SYNC INDICATOR START --- */}
+    <div className="flex items-center gap-2 px-2 py-1 rounded-lg bg-white/5 border border-white/10">
+      <Cloud 
+        size={14} 
+        className={`transition-colors ${
+          syncStatus === 'syncing' ? 'text-amber-400 animate-pulse' : 
+          syncStatus === 'success' ? 'text-green-400' : 
+          syncStatus === 'error' ? 'text-red-400' : 'text-white/20'
+        }`} 
+      />
+      <span className="text-[7px] font-black uppercase tracking-tighter opacity-60">
+        {syncStatus === 'syncing' ? 'Saving...' : syncStatus === 'success' ? 'Cloud Synced' : 'Offline'}
+      </span>
+    </div>
+    {/* --- ADD THIS SYNC INDICATOR END --- */}
+
+    <div className="flex flex-col items-end mr-2">
+      <span className="text-[9px] font-black uppercase tracking-wider">{currentUser?.name}</span>
+      <span className="text-[7px] opacity-60 font-bold uppercase text-[#FFD700]">{currentUser?.role}</span>
+    </div>
+    <button onClick={() => setIsUserSelectorOpen(true)} className="bg-white/10 p-2.5 rounded-xl hover:bg-white/20 border border-white/5 shadow-sm active:scale-90 transition-all">
+      <RotateCcw size={16} />
+    </button>
+  </div>
+</header>
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
