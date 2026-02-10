@@ -133,6 +133,8 @@ const ReceiptContent = React.forwardRef<HTMLDivElement, {
 const generateBatchId = () => `BAT-${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
 
 const App: React.FC = () => {
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const getStored = <T,>(key: string, fallback: T): T => {
     const saved = localStorage.getItem('sunlight_storage_' + key);
     if (saved === null) return fallback;
@@ -164,10 +166,7 @@ const App: React.FC = () => {
   const [selectedZone, setSelectedZone] = useState<string>(GLOBAL_ZONE_KEY);
   
   const isInitialized = localStorage.getItem('sunlight_initialized') === 'true';
-  const [inventory, setInventory] = useState<InventoryItem[]>(() => 
-    getStored('inventory', isInitialized ? [] : INITIAL_INVENTORY)
-  );
-  const [transactions, setTransactions] = useState<Transaction[]>(() => getStored('transactions', []));
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [historySearch, setHistorySearch] = useState('');
@@ -231,11 +230,15 @@ const App: React.FC = () => {
   const [lastTxId, setLastTxId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // 1. Fetch initial data from Neon when the app starts
+  // App.tsx
+
+// 1. Initial Load: Fetch from Neon with LocalStorage Fallback
 useEffect(() => {
   const loadData = async () => {
     try {
       const res = await fetch('/api/inventory');
+      if (!res.ok) throw new Error('Database request failed'); // Always check response.ok
+      
       const data = await res.json();
       if (data) {
         setInventory(data.inventory || []);
@@ -244,28 +247,27 @@ useEffect(() => {
       }
     } catch (e) {
       console.error("Database connection failed, falling back to local storage", e);
-      // Fallback to your old localStorage logic if the API fails
+      // Your existing fallback logic
       setInventory(getStored('inventory', INITIAL_INVENTORY));
     }
   };
   loadData();
-}, []);
+}, []); // Empty array runs this once on mount
 
-// 2. This replaces your old 'save to localStorage' useEffect
-// We create a helper function to push changes to Neon
+// 2. Cloud Sync Helper: Replaces local save-on-change logic
 const syncToCloud = async (newData: any, type: 'inventory' | 'transactions') => {
   try {
-    await fetch('/api/sync', {
-      method: 'POST',
+    const res = await fetch('/api/sync', {
+      method: 'POST', // Use POST to send new data to the server
       body: JSON.stringify({ type, data: newData }),
       headers: { 'Content-Type': 'application/json' }
     });
+    if (!res.ok) throw new Error('Sync failed');
   } catch (e) {
     console.error("Sync failed", e);
   }
 };
 
-// 3. Keep your UI-related useEffect (Click Outside) exactly the same
 useEffect(() => {
   const handleClickOutside = (event: MouseEvent) => {
     if (suggestionRef.current && !suggestionRef.current.contains(event.target as Node)) {
@@ -273,7 +275,7 @@ useEffect(() => {
     }
   };
   document.addEventListener("mousedown", handleClickOutside);
-  return () => document.removeEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside); // Cleanup
 }, []);
 
   const handleEnterApp = () => {
@@ -695,6 +697,8 @@ useEffect(() => {
     });
     notify(`Added to Request`);
   };
+// App.tsx -> Inside function App() { ... }
+
 
   const handleFinalIssue = async () => {
     if (!signature || !receiverName) return;
