@@ -1,17 +1,18 @@
 import { neon } from '@neondatabase/serverless';
 
 export default async function handler(req: any, res: any) {
+  if (req.method !== 'POST') return res.status(405).end();
   const sql = neon(process.env.DATABASE_URL!);
-  
-  if (req.method === 'POST') {
-    const { type, data } = req.body;
-    // Logic to UPSERT (Update or Insert) data into your Neon tables
-    // For simplicity, we can store the whole JSON blob or map to SQL columns
-    return res.status(200).json({ success: true });
-  }
+  const body = req.body;
 
-  if (req.method === 'GET') {
-    // Logic to SELECT data from Neon
-    return res.status(200).json({ inventory: [], transactions: [] });
+  try {
+    await sql`
+      INSERT INTO sunlight_inventory (id, content) 
+      VALUES ('latest', ${JSON.stringify(body.data)})
+      ON CONFLICT (id) DO UPDATE SET content = EXCLUDED.content
+    `;
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Database Write Error' });
   }
 }

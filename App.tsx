@@ -230,7 +230,19 @@ const App: React.FC = () => {
   const [lastTxId, setLastTxId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
 
-  // App.tsx
+
+
+useEffect(() => {
+  // We check if inventory has items to avoid overwriting with an empty state
+  if (inventory.length > 0) {
+    const dataToSync = {
+      inventory,
+      transactions,
+      users
+    };
+    syncToCloud(dataToSync, 'inventory');
+  }
+}, [inventory, transactions]);
 
 // 1. Initial Load: Fetch from Neon with LocalStorage Fallback
 useEffect(() => {
